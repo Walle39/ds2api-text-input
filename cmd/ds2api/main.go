@@ -22,6 +22,7 @@ func main() {
 		config.Logger.Warn("[dotenv] load failed", "error", err)
 	}
 	config.RefreshLogger()
+	processArgs()
 	webui.EnsureBuiltOnStartup()
 	_ = auth.AdminKey()
 	app, err := server.NewApp()
@@ -108,4 +109,20 @@ func detectLANIPv4() string {
 		}
 	}
 	return ""
+}
+
+func processArgs() {
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		switch arg {
+		case "-s", "--silent":
+			hideConsoleWindow()
+		case "-h", "--help":
+			fmt.Println("Usage: ds2api [options]")
+			fmt.Println("Options:")
+			fmt.Println("  -s, --silent    Run silently without console window (Windows)")
+			fmt.Println("  -h, --help      Show this help message")
+			os.Exit(0)
+		}
+	}
 }
