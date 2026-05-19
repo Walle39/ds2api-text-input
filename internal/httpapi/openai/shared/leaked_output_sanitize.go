@@ -49,13 +49,13 @@ var leakedAgentResultTagPattern = regexp.MustCompile(`(?is)</?result>`)
 // leakedDSMLBlockPattern matches DeepSeek DSML tool call blocks that leak through
 // when the model outputs raw DSML markup instead of parsed tool calls.
 // Matches: <|DSML|tool_calls> ... <|DSML|invoke ...> ... <|DSML|/invoke> ... <|DSML|/tool_calls>
-var leakedDSMLBlockPattern = regexp.MustCompile(`(?is)<\|DSML\|[^>]*>[\s\S]*?<\|DSML\|/[^>]*>`)
+var leakedDSMLBlockPattern = regexp.MustCompile(`(?is)(<\|DSML\|tool_calls>)((?:(?!<\|DSML\|/).)*)(</\|DSML\|/tool_calls>)`)
 
 // leakedDSMLInvokePattern matches individual DSML invoke tags and their content
-var leakedDSMLInvokePattern = regexp.MustCompile(`(?is)<\|DSML\|invoke[^>]*>[\s\S]*?<\|DSML\|/invoke>`)
+var leakedDSMLInvokePattern = regexp.MustCompile(`(?is)(<\|DSML\|invoke[^>]*>)((?:(?!<\|DSML\|/).)*)(</\|DSML\|/invoke>)`)
 
 // leakedDSMLToolCallsPattern matches the outer tool_calls wrapper
-var leakedDSMLToolCallsPattern = regexp.MustCompile(`(?is)<\|DSML\|tool_calls>[\s\S]*?<\|DSML\|/tool_calls>`)
+var leakedDSMLToolCallsPattern = regexp.MustCompile(`(?is)(<\|DSML\|tool_calls>)((?:(?!<\|DSML\|/).)*)(</\|DSML\|/tool_calls>)`)
 
 func sanitizeLeakedOutput(text string) string {
 	if text == "" {
@@ -176,9 +176,27 @@ func sanitizeLeakedDSMLBlocks(text string) string {
 	out := text
 	for {
 		before := out
-		out = leakedDSMLToolCallsPattern.ReplaceAllString(out, "")
-		out = leakedDSMLInvokePattern.ReplaceAllString(out, "")
-		out = leakedDSMLBlockPattern.ReplaceAllString(out, "")
+		out = leakedDSMLToolCallsPattern.ReplaceAllStringFunc(out, func(match string) string {
+			submatches := leakedDSMLToolCallsPattern.FindStringSubmatch(match)
+			if len(submatches) < 3 {
+				return ""
+			}
+			return submatches[2]
+		})
+		out = leakedDSMLInvokePattern.ReplaceAllStringFunc(out, func(match string) string {
+			submatches := leakedDSMLInvokePattern.FindStringSubmatch(match)
+			if len(submatches) < 3 {
+				return ""
+			}
+			return submatches[2]
+		})
+		out = leakedDSMLBlockPattern.ReplaceAllStringFunc(out, func(match string) string {
+			submatches := leakedDSMLBlockPattern.FindStringSubmatch(match)
+			if len(submatches) < 3 {
+				return ""
+			}
+			return submatches[2]
+		})
 		if out == before {
 			break
 		}
