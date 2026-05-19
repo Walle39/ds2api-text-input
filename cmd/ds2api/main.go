@@ -22,7 +22,7 @@ func main() {
 		config.Logger.Warn("[dotenv] load failed", "error", err)
 	}
 	config.RefreshLogger()
-	processArgs()
+	autoOpenBrowser := processArgs()
 	webui.EnsureBuiltOnStartup()
 	_ = auth.AdminKey()
 	app, err := server.NewApp()
@@ -60,6 +60,14 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+
+	// Auto open browser in silent mode
+	if autoOpenBrowser {
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			openBrowser(localURL)
+		}()
+	}
 
 	// Wait for interrupt signal (Ctrl+C / SIGTERM).
 	quit := make(chan os.Signal, 1)
@@ -111,18 +119,21 @@ func detectLANIPv4() string {
 	return ""
 }
 
-func processArgs() {
+func processArgs() bool {
+	autoOpen := false
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
 		switch arg {
 		case "-s", "--silent":
 			hideConsoleWindow()
+			autoOpen = true
 		case "-h", "--help":
 			fmt.Println("Usage: ds2api [options]")
 			fmt.Println("Options:")
-			fmt.Println("  -s, --silent    Run silently without console window (Windows)")
+			fmt.Println("  -s, --silent    Run silently and auto open browser")
 			fmt.Println("  -h, --help      Show this help message")
 			os.Exit(0)
 		}
 	}
+	return autoOpen
 }
