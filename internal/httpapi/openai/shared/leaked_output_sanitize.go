@@ -46,6 +46,17 @@ var leakedAgentWrapperPlusResultOpenPattern = regexp.MustCompile(`(?is)<(?:attem
 var leakedAgentResultPlusWrapperClosePattern = regexp.MustCompile(`(?is)</result>\s*</(?:attempt_completion|ask_followup_question|new_task)\b[^>]*>`)
 var leakedAgentResultTagPattern = regexp.MustCompile(`(?is)</?result>`)
 
+// leakedDSMLBlockPattern matches DeepSeek DSML tool call blocks that leak through
+// when the model outputs raw DSML markup instead of parsed tool calls.
+// Matches: <|DSML|tool_calls> ... <|DSML|invoke ...> ... <|DSML|/invoke> ... <|DSML|/tool_calls>
+var leakedDSMLBlockPattern = regexp.MustCompile(`(?is)<\|DSML\|[^>]*>[\s\S]*?<\|DSML\|/[^>]*>`)
+
+// leakedDSMLInvokePattern matches individual DSML invoke tags and their content
+var leakedDSMLInvokePattern = regexp.MustCompile(`(?is)<\|DSML\|invoke[^>]*>[\s\S]*?<\|DSML\|/invoke>`)
+
+// leakedDSMLToolCallsPattern matches the outer tool_calls wrapper
+var leakedDSMLToolCallsPattern = regexp.MustCompile(`(?is)<\|DSML\|tool_calls>[\s\S]*?<\|DSML\|/tool_calls>`)
+
 func sanitizeLeakedOutput(text string) string {
 	if text == "" {
 		return text
@@ -60,6 +71,7 @@ func sanitizeLeakedOutput(text string) string {
 	out = leakedMetaMarkerPattern.ReplaceAllString(out, "")
 	out = stripLeakedToolCallWrapperBlocks(out)
 	out = sanitizeLeakedAgentXMLBlocks(out)
+	out = sanitizeLeakedDSMLBlocks(out)
 	return out
 }
 
@@ -153,6 +165,23 @@ func sanitizeLeakedAgentXMLBlocks(text string) string {
 			return leakedAgentResultTagPattern.ReplaceAllString(match, "")
 		})
 		out = leakedAgentWrapperTagPattern.ReplaceAllString(out, "")
+	}
+	return out
+}
+
+func sanitizeLeakedDSMLBlocks(text string) string {
+	if text == "" {
+		return text
+	}
+	out := text
+	for {
+		before := out
+		out = leakedDSMLToolCallsPattern.ReplaceAllString(out, "")
+		out = leakedDSMLInvokePattern.ReplaceAllString(out, "")
+		out = leakedDSMLBlockPattern.ReplaceAllString(out, "")
+		if out == before {
+			break
+		}
 	}
 	return out
 }

@@ -137,7 +137,8 @@ func NormalizeContent(v any) string {
 			}
 			typeStr, _ := m["type"].(string)
 			typeStr = strings.ToLower(strings.TrimSpace(typeStr))
-			if typeStr == "text" || typeStr == "output_text" || typeStr == "input_text" {
+			switch typeStr {
+			case "text", "output_text", "input_text":
 				if txt, ok := m["text"].(string); ok && txt != "" {
 					parts = append(parts, txt)
 					continue

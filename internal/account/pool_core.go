@@ -17,17 +17,22 @@ type Pool struct {
 	recommendedConcurrency int
 	maxQueueSize           int
 	globalMaxInflight      int
+	lastUsedAccount        string
+	rateLimiter            *RateLimiter
 }
 
 func NewPool(store *config.Store) *Pool {
 	maxPer := 2
+	var intervalMs int
 	if store != nil {
 		maxPer = store.RuntimeAccountMaxInflight()
+		intervalMs = store.RuntimeRequestIntervalMs()
 	}
 	p := &Pool{
 		store:                 store,
 		inUse:                 map[string]int{},
 		maxInflightPerAccount: maxPer,
+		rateLimiter:           NewRateLimiter(intervalMs),
 	}
 	p.Reset()
 	return p

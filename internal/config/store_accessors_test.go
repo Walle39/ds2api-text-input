@@ -4,8 +4,8 @@ import "testing"
 
 func TestStoreCurrentInputFileAccessors(t *testing.T) {
 	store := &Store{cfg: Config{}}
-	if !store.CurrentInputFileEnabled() {
-		t.Fatal("expected current input file enabled by default")
+	if store.CurrentInputFileEnabled() {
+		t.Fatal("expected current input file disabled by default")
 	}
 	if got := store.CurrentInputFileMinChars(); got != 0 {
 		t.Fatalf("default current input file min_chars=%d want=0", got)
@@ -24,6 +24,37 @@ func TestStoreCurrentInputFileAccessors(t *testing.T) {
 	}
 	if got := store.CurrentInputFileMinChars(); got != 12345 {
 		t.Fatalf("current input file min_chars=%d want=12345", got)
+	}
+}
+
+func TestStoreRuntimeRequestInterval(t *testing.T) {
+	store := &Store{cfg: Config{}}
+	if got := store.RuntimeRequestIntervalMs(); got != 0 {
+		t.Fatalf("default request interval ms=%d want=0", got)
+	}
+
+	store.cfg.Runtime.RequestIntervalMs = 500
+	if got := store.RuntimeRequestIntervalMs(); got != 500 {
+		t.Fatalf("request interval ms=%d want=500", got)
+	}
+}
+
+func TestStoreAccountStickyEnabled(t *testing.T) {
+	store := &Store{cfg: Config{}}
+	if !store.AccountStickyEnabled() {
+		t.Fatal("expected account sticky enabled by default")
+	}
+
+	enabled := false
+	store.cfg.Runtime.AccountStickyEnabled = &enabled
+	if store.AccountStickyEnabled() {
+		t.Fatal("expected account sticky disabled")
+	}
+
+	enabled = true
+	store.cfg.Runtime.AccountStickyEnabled = &enabled
+	if !store.AccountStickyEnabled() {
+		t.Fatal("expected account sticky enabled")
 	}
 }
 

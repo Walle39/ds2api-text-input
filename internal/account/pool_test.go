@@ -49,8 +49,38 @@ func waitForWaitingCount(t *testing.T, pool *Pool, want int) {
 	t.Fatalf("waiting count did not reach %d, current status=%v", want, status)
 }
 
-func TestPoolRoundRobinWithConcurrentSlots(t *testing.T) {
+func TestPoolStickyBehavior(t *testing.T) {
 	pool := newPoolForTest(t, "2")
+
+	// 第一次获取应该是 acc1
+	acc1, ok := pool.Acquire("", nil)
+	if !ok || acc1.Identifier() != "acc1@example.com" {
+		t.Fatalf("first acquire expected acc1, got ok=%v id=%q", ok, acc1.Identifier())
+	}
+	pool.Release(acc1.Identifier())
+
+	// 第二次获取应该还是 acc1（因为粘性）
+	acc2, ok := pool.Acquire("", nil)
+	if !ok || acc2.Identifier() != "acc1@example.com" {
+		t.Fatalf("second acquire expected acc1 (sticky), got ok=%v id=%q", ok, acc2.Identifier())
+	}
+	pool.Release(acc2.Identifier())
+}
+
+func TestPoolRoundRobinWithConcurrentSlotsWhenStickyDisabled(t *testing.T) {
+	// 禁用账号粘性
+	t.Setenv("DS2API_ACCOUNT_MAX_INFLIGHT", "2")
+	t.Setenv("DS2API_ACCOUNT_MAX_QUEUE", "")
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["k1"],
+		"accounts":[
+			{"email":"acc1@example.com","token":"token1"},
+			{"email":"acc2@example.com","token":"token2"}
+		],
+		"runtime": {"account_sticky_enabled": false}
+	}`)
+	store := config.LoadStore()
+	pool := NewPool(store)
 
 	order := make([]string, 0, 4)
 	for i := 0; i < 4; i++ {
@@ -211,7 +241,8 @@ func TestPoolDropsLegacyTokenOnlyAccountOnLoad(t *testing.T) {
 	}
 }
 
-func TestPoolAcquireRotatesIntoTokenlessAccounts(t *testing.T) {
+func TestPoolAcquireStaysOnSameAccountWhenSticky(t *testing.T) {
+	// 默认情况下，账号粘性启用，应该一直使用 acc1
 	t.Setenv("DS2API_ACCOUNT_MAX_INFLIGHT", "1")
 	t.Setenv("DS2API_ACCOUNT_MAX_QUEUE", "")
 	t.Setenv("DS2API_CONFIG_JSON", `{
@@ -221,6 +252,33 @@ func TestPoolAcquireRotatesIntoTokenlessAccounts(t *testing.T) {
 			{"email":"acc2@example.com","token":""},
 			{"email":"acc3@example.com","token":""}
 		]
+	}`)
+
+	pool := NewPool(config.LoadStore())
+	for i := 0; i < 3; i++ {
+		acc, ok := pool.Acquire("", nil)
+		if !ok {
+			t.Fatalf("expected acquire success at step %d", i+1)
+		}
+		if got := acc.Identifier(); got != "acc1@example.com" {
+			t.Fatalf("unexpected account at step %d: got %q want acc1@example.com", i+1, got)
+		}
+		pool.Release(acc.Identifier())
+	}
+}
+
+func TestPoolAcquireRotatesWhenStickyDisabled(t *testing.T) {
+	// 禁用账号粘性，应该轮询
+	t.Setenv("DS2API_ACCOUNT_MAX_INFLIGHT", "1")
+	t.Setenv("DS2API_ACCOUNT_MAX_QUEUE", "")
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["k1"],
+		"accounts":[
+			{"email":"acc1@example.com","token":"token1"},
+			{"email":"acc2@example.com","token":""},
+			{"email":"acc3@example.com","token":""}
+		],
+		"runtime": {"account_sticky_enabled": false}
 	}`)
 
 	pool := NewPool(config.LoadStore())

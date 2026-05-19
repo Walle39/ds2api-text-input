@@ -141,6 +141,21 @@ func (s *Store) RuntimeTokenRefreshIntervalHours() int {
 	return 6
 }
 
+func (s *Store) RuntimeRequestIntervalMs() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg.Runtime.RequestIntervalMs
+}
+
+func (s *Store) AccountStickyEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.cfg.Runtime.AccountStickyEnabled == nil {
+		return true
+	}
+	return *s.cfg.Runtime.AccountStickyEnabled
+}
+
 func (s *Store) AutoDeleteSessions() bool {
 	return s.AutoDeleteMode() != "none"
 }
@@ -149,7 +164,7 @@ func (s *Store) CurrentInputFileEnabled() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.cfg.CurrentInputFile.Enabled == nil {
-		return true
+		return false
 	}
 	return *s.cfg.CurrentInputFile.Enabled
 }

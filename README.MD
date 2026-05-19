@@ -332,7 +332,7 @@ go run ./cmd/ds2api
 - `keys` / `api_keys`：客户端访问密钥，`api_keys` 支持 `name` 与 `remark` 元信息，`keys` 继续兼容。
 - `accounts`：DeepSeek 托管账号，支持 `email` 或 `mobile` 登录，可配置代理、名称和备注。
 - `model_aliases`：OpenAI / Claude / Gemini 共用的模型 alias 映射。
-- `runtime`：账号并发、队列与 token 刷新策略，可通过 Admin Settings 热更新。
+- `runtime`：账号并发、队列与 token 刷新策略，可通过 Admin Settings 热更新。包含 `request_interval_ms`（请求间隔毫秒数，默认 500ms，防止频繁请求被封禁）和 `account_sticky_enabled`（账号粘性，默认开启，优先使用上次使用的账号，避免连续对话中切换账号被判定为异常）。
 - `auto_delete.mode`：请求结束后的远端会话清理策略，支持 `none` / `single` / `all`。
 - `current_input_file`：全局生效的上下文拆分上传策略；默认开启且阈值为 `0`，触发时将完整上下文合并上传为 `DS2API_HISTORY.txt` 上下文文件。
 - 如果关闭 `current_input_file`，请求会直接透传，不上传拆分上下文文件。

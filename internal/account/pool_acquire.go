@@ -8,8 +8,12 @@ import (
 
 func (p *Pool) Acquire(target string, exclude map[string]bool) (config.Account, bool) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.acquireLocked(target, normalizeExclude(exclude))
+	acc, ok := p.acquireLocked(target, normalizeExclude(exclude))
+	p.mu.Unlock()
+	if ok && acc.Identifier() != "" && p.rateLimiter != nil {
+		p.rateLimiter.Wait(acc.Identifier())
+	}
+	return acc, ok
 }
 
 func (p *Pool) AcquireWait(ctx context.Context, target string, exclude map[string]bool) (config.Account, bool) {
@@ -25,6 +29,9 @@ func (p *Pool) AcquireWait(ctx context.Context, target string, exclude map[strin
 		p.mu.Lock()
 		if acc, ok := p.acquireLocked(target, exclude); ok {
 			p.mu.Unlock()
+			if acc.Identifier() != "" && p.rateLimiter != nil {
+				p.rateLimiter.Wait(acc.Identifier())
+			}
 			return acc, true
 		}
 		if !p.canQueueLocked(target, exclude) {
@@ -64,6 +71,21 @@ func (p *Pool) acquireLocked(target string, exclude map[string]bool) (config.Acc
 }
 
 func (p *Pool) tryAcquire(exclude map[string]bool) (config.Account, bool) {
+	stickyEnabled := true
+	if p.store != nil {
+		stickyEnabled = p.store.AccountStickyEnabled()
+	}
+
+	if stickyEnabled && p.lastUsedAccount != "" {
+		if !exclude[p.lastUsedAccount] && p.canAcquireIDLocked(p.lastUsedAccount) {
+			if acc, ok := p.store.FindAccount(p.lastUsedAccount); ok {
+				p.inUse[p.lastUsedAccount]++
+				p.bumpQueue(p.lastUsedAccount)
+				return acc, true
+			}
+		}
+	}
+
 	for i := 0; i < len(p.queue); i++ {
 		id := p.queue[i]
 		if exclude[id] || !p.canAcquireIDLocked(id) {
@@ -74,6 +96,7 @@ func (p *Pool) tryAcquire(exclude map[string]bool) (config.Account, bool) {
 			continue
 		}
 		p.inUse[id]++
+		p.lastUsedAccount = id
 		p.bumpQueue(id)
 		return acc, true
 	}
